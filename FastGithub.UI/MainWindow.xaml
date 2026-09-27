@@ -171,11 +171,11 @@
             <TabControl.Tag>
                 <StackPanel VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock x:Name="latencyModeText" Text="延迟优先" FontSize="13" VerticalAlignment="Center" Foreground="#999999"/>
+                        <TextBlock x:Name="latencyModeText" Text="延迟优先" FontSize="15" VerticalAlignment="Center" Foreground="#999999"/>
                         <CheckBox x:Name="speedModeSwitch" Style="{StaticResource SpeedModeSwitchStyle}" Margin="8 0" VerticalAlignment="Center"
                                   ToolTip="下载优先：会定期主动下载少量数据实测各节点下载速率，占用少量带宽&#x0a;延迟优先：只按握手延迟排序，不产生任何额外流量"
                                   Checked="SpeedModeSwitch_Checked" Unchecked="SpeedModeSwitch_Unchecked"/>
-                        <TextBlock x:Name="throughputModeText" Text="下载优先" FontSize="13" FontWeight="Bold" VerticalAlignment="Center" Foreground="#37aefe"/>
+                        <TextBlock x:Name="throughputModeText" Text="下载优先" FontSize="15" FontWeight="Bold" VerticalAlignment="Center" Foreground="#37aefe"/>
                     </StackPanel>
                     <TextBlock x:Name="speedModeHint" FontSize="13" Margin="2 4 0 0" Foreground="#999999"/>
                 </StackPanel>
