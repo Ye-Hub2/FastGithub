@@ -91,15 +91,29 @@ namespace FastGithub.DomainResolve
             var cryptDns = this.dnscryptProxy.LocalEndPoint;
             if (cryptDns != null)
             {
-                yield return cryptDns;
+                // 只返回一次：失败时已写入否定缓存，紧接着的再次尝试只会命中缓存
                 yield return cryptDns;
             }
 
-            foreach (var dns in this.fastGithubConfig.FallbackDns)
+            var fallbackDns = this.fastGithubConfig.FallbackDns;
+            if (fallbackDns.Length == 0)
             {
-                if (await this.IsDnsAvailableAsync(dns, cancellationToken))
+                yield break;
+            }
+
+            // 并行探测回退dns的可用性，避免逐个探测时的串行等待
+            var availableTasks = new Task<bool>[fallbackDns.Length];
+            for (var i = 0; i < fallbackDns.Length; i++)
+            {
+                availableTasks[i] = this.IsDnsAvailableAsync(fallbackDns[i], cancellationToken).AsTask();
+            }
+            var available = await Task.WhenAll(availableTasks);
+
+            for (var i = 0; i < fallbackDns.Length; i++)
+            {
+                if (available[i] == true)
                 {
-                    yield return dns;
+                    yield return fallbackDns[i];
                 }
             }
         }
@@ -175,31 +189,13 @@ namespace FastGithub.DomainResolve
             catch (Exception ex)
             {
                 this.logger.LogWarning($"{endPoint.Host}@{dns}->{ex.Message}");
-                var expiration = IsSocketException(ex) ? this.maxTimeToLive : this.minTimeToLive;
-                return this.dnsLookupCache.Set(key, Array.Empty<IPAddress>(), expiration);
+                return this.dnsLookupCache.Set(key, Array.Empty<IPAddress>(), this.fastGithubConfig.DnsNegativeCacheTimeout);
             }
             finally
             {
                 semaphore.Release();
             }
         }
-
-        /// <summary>
-        /// 是否为Socket异常
-        /// </summary>
-        /// <param name="ex"></param>
-        /// <returns></returns>
-        private static bool IsSocketException(Exception ex)
-        {
-            if (ex is SocketException)
-            {
-                return true;
-            }
-
-            var inner = ex.InnerException;
-            return inner != null && IsSocketException(inner);
-        }
-
 
         /// <summary>
         /// 解析域名
@@ -315,24 +311,37 @@ namespace FastGithub.DomainResolve
             using var controlTokenSource = new CancellationTokenSource(tcpConnectTimeout);
             using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, controlTokenSource.Token);
 
-            var connectTasks = addresses.Select(address => ConnectAsync(address, port, linkedTokenSource.Token));
-            var fastestAddress = await await Task.WhenAny(connectTasks);
-            controlTokenSource.Cancel();
-
-            if (fastestAddress == null || addresses.First().Equals(fastestAddress))
+            var connectTasks = addresses.Select(address => ConnectAsync(address, port, linkedTokenSource.Token)).ToList();
+            while (connectTasks.Count > 0)
             {
-                return addresses;
-            }
+                var completedTask = await Task.WhenAny(connectTasks);
+                connectTasks.Remove(completedTask);
 
-            var list = new List<IPAddress> { fastestAddress };
-            foreach (var address in addresses)
-            {
-                if (address.Equals(fastestAddress) == false)
+                var fastestAddress = await completedTask;
+                if (fastestAddress == null)
                 {
-                    list.Add(address);
+                    // 该连接失败，继续等待下一个完成的连接
+                    continue;
                 }
+
+                controlTokenSource.Cancel();
+                if (addresses[0].Equals(fastestAddress) == true)
+                {
+                    return addresses;
+                }
+
+                var list = new List<IPAddress>(addresses.Count) { fastestAddress };
+                foreach (var address in addresses)
+                {
+                    if (address.Equals(fastestAddress) == false)
+                    {
+                        list.Add(address);
+                    }
+                }
+                return list;
             }
-            return list;
+
+            return addresses;
         }
 
         /// <summary>

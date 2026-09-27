@@ -1,5 +1,7 @@
-﻿using Microsoft.Extensions.Caching.Memory;
+﻿using FastGithub.Configuration;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -20,7 +22,9 @@ namespace FastGithub.HttpServer.Certs
         private const string CACERT_PATH = "cacert";
         private readonly IMemoryCache serverCertCache;
         private readonly IEnumerable<ICaCertInstaller> certInstallers;
+        private readonly IOptions<FastGithubOptions> options;
         private readonly ILogger<CertService> logger;
+        private bool gitSslverifyConfigured;
         private X509Certificate2? caCert;
 
 
@@ -39,14 +43,17 @@ namespace FastGithub.HttpServer.Certs
         /// </summary>
         /// <param name="serverCertCache"></param>
         /// <param name="certInstallers"></param>
+        /// <param name="options"></param>
         /// <param name="logger"></param>
         public CertService(
             IMemoryCache serverCertCache,
             IEnumerable<ICaCertInstaller> certInstallers,
+            IOptions<FastGithubOptions> options,
             ILogger<CertService> logger)
         {
             this.serverCertCache = serverCertCache;
             this.certInstallers = certInstallers;
+            this.options = options;
             this.logger = logger;
             Directory.CreateDirectory(CACERT_PATH);
         }
@@ -94,22 +101,133 @@ namespace FastGithub.HttpServer.Certs
                 this.logger.LogWarning($"请根据你的系统平台手动安装和信任CA证书{this.CaCerFilePath}");
             }
 
-            GitConfigSslverify(false);
+            this.ConfigureGitSslverify();
         }
 
         /// <summary>
-        /// 设置ssl验证
+        /// 配置git的ssl校验
+        /// 默认不修改git的任何配置，仅在DisableGitSslverify为true时对已配置的具体域名关闭校验
         /// </summary>
+        private void ConfigureGitSslverify()
+        {
+            if (this.gitSslverifyConfigured == true)
+            {
+                return;
+            }
+            this.gitSslverifyConfigured = true;
+
+            this.CheckGlobalGitSslverify();
+
+            if (this.options.Value.DisableGitSslverify == false)
+            {
+                this.logger.LogInformation($"如果git提示SSL certificate problem，请执行git config --global http.sslBackend schannel，或将CA证书{this.CaCerFilePath}加入git的信任列表");
+                return;
+            }
+
+            var domains = this.options.Value.DomainConfigs.Keys.Where(item => item.Contains('*') == false).ToArray();
+            if (domains.Length == 0)
+            {
+                this.logger.LogWarning($"已开启{nameof(FastGithubOptions.DisableGitSslverify)}，但没有配置具体域名，未修改git配置，可手动执行git config --global http.sslverify false");
+                return;
+            }
+
+            foreach (var domain in domains)
+            {
+                GitConfigSslverify(domain, false);
+            }
+            this.logger.LogInformation($"已为[{string.Join(", ", domains)}]关闭git的ssl校验");
+        }
+
+        /// <summary>
+        /// 检测git全局配置中遗留的sslverify=false
+        /// </summary>
+        private void CheckGlobalGitSslverify()
+        {
+            if (GetGlobalGitSslverify() != false)
+            {
+                return;
+            }
+
+            this.logger.LogWarning($"检测到git全局配置http.sslverify=false（历史版本遗留），git将不再校验服务器证书。建议执行 git config --global --unset http.sslverify 恢复校验；如果环境不允许，可改为只对github关闭：git config --global http.https://github.com/.sslverify false");
+        }
+
+        /// <summary>
+        /// 获取git全局配置http.sslverify的值
+        /// </summary>
+        /// <returns>未配置或无法获取时返回null</returns>
+        private static bool? GetGlobalGitSslverify()
+        {
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "git",
+                    Arguments = "config --global --get http.sslverify",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden
+                };
+
+                using var process = Process.Start(startInfo);
+                if (process == null)
+                {
+                    return null;
+                }
+
+                if (process.WaitForExit(3000) == false)
+                {
+                    process.Kill();
+                    return null;
+                }
+
+                var output = process.StandardOutput.ReadToEnd().Trim();
+                return ParseGitBoolean(output);
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// 解析git的布尔值
+        /// </summary>
+        /// <param name="value"></param>
+        /// <returns></returns>
+        private static bool? ParseGitBoolean(string value)
+        {
+            switch (value.ToLowerInvariant())
+            {
+                case "true":
+                case "yes":
+                case "on":
+                case "1":
+                    return true;
+                case "false":
+                case "no":
+                case "off":
+                case "0":
+                    return false;
+                default:
+                    return null;
+            }
+        }
+
+        /// <summary>
+        /// 设置指定域名的ssl验证
+        /// </summary>
+        /// <param name="domain">域名</param>
         /// <param name="value">是否验证</param>
         /// <returns></returns>
-        public static bool GitConfigSslverify(bool value)
+        public static bool GitConfigSslverify(string domain, bool value)
         {
             try
             {
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = "git",
-                    Arguments = $"config --global http.sslverify {value.ToString().ToLower()}",
+                    Arguments = $"config --global http.https://{domain}/.sslverify {value.ToString().ToLower()}",
                     UseShellExecute = true,
                     CreateNoWindow = true,
                     WindowStyle = ProcessWindowStyle.Hidden

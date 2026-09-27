@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using FastGithub.Configuration;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -19,6 +20,7 @@ namespace FastGithub.DomainResolve
         private readonly DnsClient dnsClient;
         private readonly PersistenceService persistence;
         private readonly IPAddressService addressService;
+        private readonly FastGithubConfig fastGithubConfig;
         private readonly ILogger<DomainResolver> logger;
         private readonly ConcurrentDictionary<DnsEndPoint, IPAddress[]> dnsEndPointAddress = new();
 
@@ -28,16 +30,19 @@ namespace FastGithub.DomainResolve
         /// <param name="dnsClient"></param>
         /// <param name="persistence"></param>
         /// <param name="addressService"></param>
+        /// <param name="fastGithubConfig"></param>
         /// <param name="logger"></param>
         public DomainResolver(
             DnsClient dnsClient,
             PersistenceService persistence,
             IPAddressService addressService,
+            FastGithubConfig fastGithubConfig,
             ILogger<DomainResolver> logger)
         {
             this.dnsClient = dnsClient;
             this.persistence = persistence;
             this.addressService = addressService;
+            this.fastGithubConfig = fastGithubConfig;
             this.logger = logger;
 
             foreach (var endPoint in persistence.ReadDnsEndPoints())
@@ -82,12 +87,20 @@ namespace FastGithub.DomainResolve
         /// <returns></returns>
         public async Task TestSpeedAsync(CancellationToken cancellationToken)
         {
-            foreach (var keyValue in this.dnsEndPointAddress.OrderBy(item => item.Value.Length))
+            // 并发测速：域名较多时串行测速会让整轮耗时远超测速周期，导致ip顺序迟迟不刷新
+            var entries = this.dnsEndPointAddress.OrderBy(item => item.Value.Length).ToArray();
+            var parallelOptions = new ParallelOptions
+            {
+                MaxDegreeOfParallelism = this.fastGithubConfig.TestSpeedParallelCount,
+                CancellationToken = cancellationToken
+            };
+
+            await Parallel.ForEachAsync(entries, parallelOptions, async (keyValue, token) =>
             {
                 var dnsEndPoint = keyValue.Key;
                 var oldAddresses = keyValue.Value;
 
-                var newAddresses = await this.addressService.GetAddressesAsync(dnsEndPoint, oldAddresses, cancellationToken);
+                var newAddresses = await this.addressService.GetAddressesAsync(dnsEndPoint, oldAddresses, token);
                 this.dnsEndPointAddress[dnsEndPoint] = newAddresses;
 
                 var oldSegmentums = oldAddresses.Take(MAX_IP_COUNT);
@@ -97,7 +110,7 @@ namespace FastGithub.DomainResolve
                     var addressArray = string.Join(", ", newSegmentums.Select(item => item.ToString()));
                     this.logger.LogInformation($"{dnsEndPoint.Host}:{dnsEndPoint.Port}->[{addressArray}]");
                 }
-            }
+            });
         }
     }
 }

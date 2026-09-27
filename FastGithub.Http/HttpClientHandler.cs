@@ -2,6 +2,7 @@
 using FastGithub.DomainResolve;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -22,17 +23,22 @@ namespace FastGithub.Http
     {
         private readonly DomainConfig domainConfig;
         private readonly IDomainResolver domainResolver;
-        private readonly TimeSpan connectTimeout = TimeSpan.FromSeconds(10d);
+
+        /// <summary>
+        /// tcp连接的超时预算
+        /// </summary>
+        private readonly ConnectTimeoutConfig connectTimeout;
 
         /// <summary>
         /// HttpClientHandler
         /// </summary>
         /// <param name="domainConfig"></param>
         /// <param name="domainResolver"></param> 
-        public HttpClientHandler(DomainConfig domainConfig, IDomainResolver domainResolver)
+        public HttpClientHandler(DomainConfig domainConfig, IDomainResolver domainResolver, ConnectTimeoutConfig connectTimeout)
         {
             this.domainConfig = domainConfig;
             this.domainResolver = domainResolver;
+            this.connectTimeout = connectTimeout;
             this.InnerHandler = this.CreateSocketsHttpHandler();
         }
 
@@ -95,12 +101,29 @@ namespace FastGithub.Http
         {
             var innerExceptions = new List<Exception>();
             var ipEndPoints = this.GetIPEndPointsAsync(context.DnsEndPoint, cancellationToken);
+            var stopwatch = Stopwatch.StartNew();
+            var attemptIndex = 0;
 
             await foreach (var ipEndPoint in ipEndPoints)
             {
+                var remaining = this.connectTimeout.Total - stopwatch.Elapsed;
+                if (remaining <= TimeSpan.Zero)
+                {
+                    break;
+                }
+
+                var isFirstAttempt = attemptIndex == 0;
+                attemptIndex++;
+
+                var attemptTimeout = isFirstAttempt ? this.connectTimeout.FirstIp : this.connectTimeout.FailoverIp;
+                if (attemptTimeout > remaining)
+                {
+                    attemptTimeout = remaining;
+                }
+
                 try
                 {
-                    using var timeoutTokenSource = new CancellationTokenSource(this.connectTimeout);
+                    using var timeoutTokenSource = new CancellationTokenSource(attemptTimeout);
                     using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(timeoutTokenSource.Token, cancellationToken);
                     return await this.ConnectAsync(context, ipEndPoint, linkedTokenSource.Token);
                 }
@@ -150,6 +173,17 @@ namespace FastGithub.Http
             // 验证证书有效性
             bool ValidateServerCertificate(object sender, X509Certificate? cert, X509Chain? chain, SslPolicyErrors errors)
             {
+                if (errors == SslPolicyErrors.None)
+                {
+                    return true;
+                }
+
+                // 证书链不可信（自签名/过期/未知CA）时直接拒绝，不允许被名字不匹配的分支绕过
+                if (errors.HasFlag(SslPolicyErrors.RemoteCertificateChainErrors) && this.domainConfig.TlsAllowUntrustedCert == false)
+                {
+                    return false;
+                }
+
                 if (errors.HasFlag(SslPolicyErrors.RemoteCertificateNameMismatch))
                 {
                     if (this.domainConfig.TlsIgnoreNameMismatch == true)
@@ -162,7 +196,7 @@ namespace FastGithub.Http
                     return dnsNames.Any(dns => IsMatch(dns, domain));
                 }
 
-                return errors == SslPolicyErrors.None;
+                return false;
             }
         }
 

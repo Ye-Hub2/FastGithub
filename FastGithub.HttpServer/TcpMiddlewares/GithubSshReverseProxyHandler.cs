@@ -1,4 +1,5 @@
-﻿using FastGithub.DomainResolve;
+﻿using FastGithub.Configuration;
+using FastGithub.DomainResolve;
 
 namespace FastGithub.HttpServer.TcpMiddlewares
 {
@@ -11,8 +12,9 @@ namespace FastGithub.HttpServer.TcpMiddlewares
         /// github的ssh代理处理者
         /// </summary>
         /// <param name="domainResolver"></param>
-        public GithubSshReverseProxyHandler(IDomainResolver domainResolver)
-            : base(domainResolver, new("github.com", 22))
+        /// <param name="fastGithubConfig"></param>
+        public GithubSshReverseProxyHandler(IDomainResolver domainResolver, FastGithubConfig fastGithubConfig)
+            : base(domainResolver, new("github.com", 22), fastGithubConfig)
         {
         }
     }

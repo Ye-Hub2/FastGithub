@@ -25,6 +25,12 @@ namespace FastGithub.Configuration
         public bool TlsIgnoreNameMismatch { get; init; }
 
         /// <summary>
+        /// 是否允许不受信任的服务器证书
+        /// 证书链不可信（自签名/过期/未知CA）时是否仍然连接，默认为false
+        /// </summary>
+        public bool TlsAllowUntrustedCert { get; init; }
+
+        /// <summary>
         /// 使用的ip地址
         /// </summary>
         public IPAddress? IPAddress { get; init; }

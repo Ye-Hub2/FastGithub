@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Options;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -26,6 +27,21 @@ namespace FastGithub.Configuration
         public IPEndPoint[] FallbackDns { get; set; }
 
         /// <summary>
+        /// dns解析失败后的否定缓存时长
+        /// </summary>
+        public TimeSpan DnsNegativeCacheTimeout { get; set; }
+
+        /// <summary>
+        /// 域名测速的并行数
+        /// </summary>
+        public int TestSpeedParallelCount { get; set; }
+
+        /// <summary>
+        /// tcp连接的超时预算
+        /// </summary>
+        public ConnectTimeoutConfig ConnectTimeout { get; set; }
+
+        /// <summary>
         /// FastGithub配置
         /// </summary>
         /// <param name="options"></param>
@@ -36,6 +52,9 @@ namespace FastGithub.Configuration
 
             this.HttpProxyPort = opt.HttpProxyPort;
             this.FallbackDns = opt.FallbackDns;
+            this.DnsNegativeCacheTimeout = opt.GetDnsNegativeCacheTimeout();
+            this.TestSpeedParallelCount = opt.GetTestSpeedParallelCount();
+            this.ConnectTimeout = opt.GetConnectTimeout();
             this.domainConfigs = ConvertDomainConfigs(opt.DomainConfigs);
             this.domainConfigCache = new ConcurrentDictionary<string, DomainConfig?>();
 
@@ -50,6 +69,9 @@ namespace FastGithub.Configuration
         {
             this.HttpProxyPort = options.HttpProxyPort;
             this.FallbackDns = options.FallbackDns;
+            this.DnsNegativeCacheTimeout = options.GetDnsNegativeCacheTimeout();
+            this.TestSpeedParallelCount = options.GetTestSpeedParallelCount();
+            this.ConnectTimeout = options.GetConnectTimeout();
             this.domainConfigs = ConvertDomainConfigs(options.DomainConfigs);
             this.domainConfigCache = new ConcurrentDictionary<string, DomainConfig?>();
         }

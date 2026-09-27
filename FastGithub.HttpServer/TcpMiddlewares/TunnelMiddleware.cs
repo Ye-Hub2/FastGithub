@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Pipelines;
 using System.Net;
@@ -23,7 +24,6 @@ namespace FastGithub.HttpServer.TcpMiddlewares
     {
         private readonly FastGithubConfig fastGithubConfig;
         private readonly IDomainResolver domainResolver;
-        private readonly TimeSpan connectTimeout = TimeSpan.FromSeconds(10d);
 
         /// <summary>
         /// 隧道中间件
@@ -79,12 +79,31 @@ namespace FastGithub.HttpServer.TcpMiddlewares
         private async Task<Stream> CreateConnectionAsync(HostString host, CancellationToken cancellationToken)
         {
             var innerExceptions = new List<Exception>();
+            var connectTimeout = this.fastGithubConfig.ConnectTimeout;
+            var stopwatch = Stopwatch.StartNew();
+            var attemptIndex = 0;
+
             await foreach (var endPoint in this.GetUpstreamEndPointsAsync(host, cancellationToken))
             {
+                var remaining = connectTimeout.Total - stopwatch.Elapsed;
+                if (remaining <= TimeSpan.Zero)
+                {
+                    break;
+                }
+
+                var isFirstAttempt = attemptIndex == 0;
+                attemptIndex++;
+
+                var attemptTimeout = isFirstAttempt ? connectTimeout.FirstIp : connectTimeout.FailoverIp;
+                if (attemptTimeout > remaining)
+                {
+                    attemptTimeout = remaining;
+                }
+
                 var socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
                 try
                 {
-                    using var timeoutTokenSource = new CancellationTokenSource(this.connectTimeout);
+                    using var timeoutTokenSource = new CancellationTokenSource(attemptTimeout);
                     using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutTokenSource.Token);
                     await socket.ConnectAsync(endPoint, linkedTokenSource.Token);
                     return new NetworkStream(socket, ownsSocket: true);

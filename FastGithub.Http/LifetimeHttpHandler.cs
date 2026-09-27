@@ -1,4 +1,5 @@
-﻿using FastGithub.DomainResolve;
+﻿using FastGithub.Configuration;
+using FastGithub.DomainResolve;
 using System;
 using System.Net.Http;
 using System.Threading;
@@ -21,10 +22,10 @@ namespace FastGithub.Http
         /// <param name="lifeTimeKey"></param>
         /// <param name="lifeTime"></param>
         /// <param name="deactivateAction"></param>
-        public LifetimeHttpHandler(IDomainResolver domainResolver, LifeTimeKey lifeTimeKey, TimeSpan lifeTime, Action<LifetimeHttpHandler> deactivateAction)
+        public LifetimeHttpHandler(IDomainResolver domainResolver, LifeTimeKey lifeTimeKey, ConnectTimeoutConfig connectTimeout, TimeSpan lifeTime, Action<LifetimeHttpHandler> deactivateAction)
         {
             this.LifeTimeKey = lifeTimeKey;
-            this.InnerHandler = new HttpClientHandler(lifeTimeKey.DomainConfig, domainResolver);
+            this.InnerHandler = new HttpClientHandler(lifeTimeKey.DomainConfig, domainResolver, connectTimeout);
             this.timer = new Timer(this.OnTimerCallback, deactivateAction, lifeTime, Timeout.InfiniteTimeSpan);
         }
 

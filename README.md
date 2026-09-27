@@ -1,4 +1,4 @@
-# FastGithub
+﻿# FastGithub
 github加速神器，解决github打不开、用户头像无法加载、releases无法上传下载、git-clone、git-pull、git-push失败等问题。
 
 * 原仓库 https://github.com/dotnetcore/fastgithub 已经没有了，所以拿了最新版本改了自用。
@@ -45,8 +45,11 @@ github加速神器，解决github打不开、用户头像无法加载、releases
   
 ### 4 证书验证
 #### 4.1 git
-git操作提示`SSL certificate problem`</br>
-需要关闭git的证书验证：`git config --global http.sslverify false`
+git操作提示`SSL certificate problem`时，推荐让git改用系统证书库（FastGithub的CA已安装在其中）：</br>
+`git config --global http.sslBackend schannel`</br>
+如果仍然失败，可以只对github关闭校验：`git config --global http.https://github.com/.sslverify false`</br>
+**不建议**执行`git config --global http.sslverify false`，它会让所有仓库的证书校验长期失效，存在被中间人攻击的风险。</br>
+如确需程序代劳，可把`appsettings.json`的`DisableGitSslverify`设为`true`，程序只会对已配置的具体域名关闭校验。
 
 #### 4.2 firefox
 firefox提示`连接有潜在的安全问题`</br>

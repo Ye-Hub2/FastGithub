@@ -23,7 +23,18 @@ namespace FastGithub.Http
         /// <param name="domainConfig"></param>
         /// <param name="domainResolver"></param>
         public HttpClient(DomainConfig domainConfig, IDomainResolver domainResolver)
-            : this(new HttpClientHandler(domainConfig, domainResolver), disposeHandler: true)
+            : this(domainConfig, domainResolver, new ConnectTimeoutConfig())
+        {
+        }
+
+        /// <summary>
+        /// http客户端
+        /// </summary>
+        /// <param name="domainConfig"></param>
+        /// <param name="domainResolver"></param>
+        /// <param name="connectTimeout"></param>
+        public HttpClient(DomainConfig domainConfig, IDomainResolver domainResolver, ConnectTimeoutConfig connectTimeout)
+            : this(new HttpClientHandler(domainConfig, domainResolver, connectTimeout), disposeHandler: true)
         {
         }
 

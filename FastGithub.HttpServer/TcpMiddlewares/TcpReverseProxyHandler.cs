@@ -1,7 +1,9 @@
-﻿using FastGithub.DomainResolve;
+﻿using FastGithub.Configuration;
+using FastGithub.DomainResolve;
 using Microsoft.AspNetCore.Connections;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Pipelines;
 using System.Net;
@@ -17,18 +19,20 @@ namespace FastGithub.HttpServer.TcpMiddlewares
     abstract class TcpReverseProxyHandler : ConnectionHandler
     {
         private readonly IDomainResolver domainResolver;
+        private readonly FastGithubConfig fastGithubConfig;
         private readonly DnsEndPoint endPoint;
-        private readonly TimeSpan connectTimeout = TimeSpan.FromSeconds(10d);
 
         /// <summary>
         /// tcp协议代理处理者
         /// </summary>
         /// <param name="domainResolver"></param>
         /// <param name="endPoint"></param>
-        public TcpReverseProxyHandler(IDomainResolver domainResolver, DnsEndPoint endPoint)
+        /// <param name="fastGithubConfig"></param>
+        public TcpReverseProxyHandler(IDomainResolver domainResolver, DnsEndPoint endPoint, FastGithubConfig fastGithubConfig)
         {
             this.domainResolver = domainResolver;
             this.endPoint = endPoint;
+            this.fastGithubConfig = fastGithubConfig;
         }
 
         /// <summary>
@@ -54,15 +58,36 @@ namespace FastGithub.HttpServer.TcpMiddlewares
         private async Task<Stream> CreateConnectionAsync(CancellationToken cancellationToken)
         {
             var innerExceptions = new List<Exception>();
+            var connectTimeout = this.fastGithubConfig.ConnectTimeout;
+            var stopwatch = Stopwatch.StartNew();
+            var attemptIndex = 0;
+
             await foreach (var address in domainResolver.ResolveAsync(endPoint, cancellationToken))
             {
+                var remaining = connectTimeout.Total - stopwatch.Elapsed;
+                if (remaining <= TimeSpan.Zero)
+                {
+                    break;
+                }
+
+                var isFirstAttempt = attemptIndex == 0;
+                attemptIndex++;
+
+                var attemptTimeout = isFirstAttempt ? connectTimeout.FirstIp : connectTimeout.FailoverIp;
+                if (attemptTimeout > remaining)
+                {
+                    attemptTimeout = remaining;
+                }
+
                 var socket = new Socket(address.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
                 try
                 {
-                    using var timeoutTokenSource = new CancellationTokenSource(connectTimeout);
+                    using var timeoutTokenSource = new CancellationTokenSource(attemptTimeout);
                     using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutTokenSource.Token);
                     await socket.ConnectAsync(address, endPoint.Port, linkedTokenSource.Token);
-                    return new NetworkStream(socket, ownsSocket: false);
+
+                    // ownsSocket必须为true，否则连接结束后socket不会被释放
+                    return new NetworkStream(socket, ownsSocket: true);
                 }
                 catch (Exception ex)
                 {
