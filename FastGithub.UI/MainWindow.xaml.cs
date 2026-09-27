@@ -99,8 +99,7 @@ namespace FastGithub.UI
                 }
                 await Task.Delay(1000);
             }
-
-            this.speedModeHint.Text = "未读取到模式";
+            // 读取失败时保持界面默认状态
         }
 
         /// <summary>
@@ -157,7 +156,6 @@ namespace FastGithub.UI
             this.SetSwitchChecked(isThroughput);
             if (isThroughput == true)
             {
-                this.speedModeHint.Text = "下载优先：占用少量带宽测速";
                 this.throughputModeText.Foreground = new SolidColorBrush(accent);
                 this.throughputModeText.FontWeight = FontWeights.Bold;
                 this.latencyModeText.Foreground = new SolidColorBrush(gray);
@@ -165,7 +163,6 @@ namespace FastGithub.UI
             }
             else
             {
-                this.speedModeHint.Text = "延迟优先：只按延迟排序";
                 this.latencyModeText.Foreground = new SolidColorBrush(accent);
                 this.latencyModeText.FontWeight = FontWeights.Bold;
                 this.throughputModeText.Foreground = new SolidColorBrush(gray);

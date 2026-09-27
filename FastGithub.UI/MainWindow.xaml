@@ -28,12 +28,16 @@
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
                                     <RowDefinition x:Name="RowDefinition0" Height="Auto"/>
-                                    <RowDefinition x:Name="RowDefinition1" Height="*"/>
+                                    <RowDefinition x:Name="RowDefinition1" Height="Auto"/>
+                                    <RowDefinition x:Name="RowDefinition2" Height="*"/>
                                 </Grid.RowDefinitions>
-                                <ContentPresenter x:Name="HeaderAccessory" Grid.Row="0" Grid.Column="0" Content="{TemplateBinding Tag}" VerticalAlignment="Top" Margin="8 6 6 0"/>
-                                <TabPanel x:Name="HeaderPanel" HorizontalAlignment="Left" VerticalAlignment="Top" Background="Transparent" Grid.Column="1" IsItemsHost="True" Margin="0 0 0 8" Grid.Row="0" KeyboardNavigation.TabIndex="1" Panel.ZIndex="1"/>
-                                <Line X1="0" X2="{Binding ActualWidth, RelativeSource={RelativeSource Self}}" Stroke="Gray" StrokeThickness="0.1" VerticalAlignment="Bottom" Margin="0 0 0 1" Grid.Column="0" Grid.ColumnSpan="3" SnapsToDevicePixels="True"/>
-                                <Border x:Name="ContentPanel" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Background="{TemplateBinding Background}" Grid.Column="0" Grid.ColumnSpan="3" KeyboardNavigation.DirectionalNavigation="Contained" Grid.Row="1" KeyboardNavigation.TabIndex="2" KeyboardNavigation.TabNavigation="Local">
+                                <StackPanel Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3" Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <ContentPresenter x:Name="HeaderAccessory" Content="{TemplateBinding Tag}" VerticalAlignment="Top" Margin="0 6 10 0"/>
+                                    <TabPanel x:Name="HeaderPanel" VerticalAlignment="Top" Background="Transparent" IsItemsHost="True" Margin="0 0 0 8" KeyboardNavigation.TabIndex="1" Panel.ZIndex="1"/>
+                                </StackPanel>
+                                <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" FontSize="13" Margin="12 0 0 4" HorizontalAlignment="Left" Foreground="#999999" Text="提示：【延迟优先】只按延迟排序。【下载优先】占用少量带宽测速进行排序。"/>
+                                <Line X1="0" X2="{Binding ActualWidth, RelativeSource={RelativeSource Self}}" Stroke="Gray" StrokeThickness="0.1" VerticalAlignment="Bottom" Margin="0 0 0 1" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" SnapsToDevicePixels="True"/>
+                                <Border x:Name="ContentPanel" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Background="{TemplateBinding Background}" Grid.Column="0" Grid.ColumnSpan="3" KeyboardNavigation.DirectionalNavigation="Contained" Grid.Row="2" KeyboardNavigation.TabIndex="2" KeyboardNavigation.TabNavigation="Local">
                                     <ContentPresenter x:Name="PART_SelectedContentHost" ContentTemplate="{TemplateBinding SelectedContentTemplate}" Content="{TemplateBinding SelectedContent}" ContentStringFormat="{TemplateBinding SelectedContentStringFormat}" ContentSource="SelectedContent" Margin="0" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/>
                                 </Border>
                             </Grid>
@@ -169,15 +173,12 @@
     <Grid Background="#00ffffff">
         <TabControl Style="{StaticResource TabControlWithUnderLineStyle}" Foreground="Black" Background="Transparent" BorderBrush="Transparent" BorderThickness="0">
             <TabControl.Tag>
-                <StackPanel VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock x:Name="latencyModeText" Text="延迟优先" FontSize="15" VerticalAlignment="Center" Foreground="#999999"/>
-                        <CheckBox x:Name="speedModeSwitch" Style="{StaticResource SpeedModeSwitchStyle}" Margin="8 0" VerticalAlignment="Center"
-                                  ToolTip="下载优先：会定期主动下载少量数据实测各节点下载速率，占用少量带宽&#x0a;延迟优先：只按握手延迟排序，不产生任何额外流量"
-                                  Checked="SpeedModeSwitch_Checked" Unchecked="SpeedModeSwitch_Unchecked"/>
-                        <TextBlock x:Name="throughputModeText" Text="下载优先" FontSize="15" FontWeight="Bold" VerticalAlignment="Center" Foreground="#37aefe"/>
-                    </StackPanel>
-                    <TextBlock x:Name="speedModeHint" FontSize="13" Margin="2 4 0 0" Foreground="#999999"/>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock x:Name="latencyModeText" Text="延迟优先" FontSize="18" VerticalAlignment="Center" Foreground="#999999"/>
+                    <CheckBox x:Name="speedModeSwitch" Style="{StaticResource SpeedModeSwitchStyle}" Margin="10 0" VerticalAlignment="Center"
+                              ToolTip="下载优先：会定期主动下载少量数据实测各节点下载速率，占用少量带宽&#x0a;延迟优先：只按握手延迟排序，不产生任何额外流量"
+                              Checked="SpeedModeSwitch_Checked" Unchecked="SpeedModeSwitch_Unchecked"/>
+                    <TextBlock x:Name="throughputModeText" Text="下载优先" FontSize="18" FontWeight="Bold" VerticalAlignment="Center" Foreground="#37aefe"/>
                 </StackPanel>
             </TabControl.Tag>
             <TabItem Style="{StaticResource TabItemExWithUnderLineStyle}" Header="流量" Height="40" Width="60"  Margin="5 0" FontSize="18">
