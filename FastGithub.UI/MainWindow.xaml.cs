@@ -68,21 +68,6 @@ namespace FastGithub.UI
                 return;
             }
 
-            var message = "切换到下载优先后，会定期主动下载少量数据来实测各节点的下载速率，会占用你的带宽。"
-                + Environment.NewLine + Environment.NewLine
-                + "好处：大文件、Release 下载会优先走实测最快的节点。"
-                + Environment.NewLine
-                + "延迟优先只按握手延迟排序，不产生任何额外流量。"
-                + Environment.NewLine + Environment.NewLine
-                + "是否切换到下载优先？";
-
-            var result = MessageBox.Show(this, message, "确认切换", MessageBoxButton.OKCancel, MessageBoxImage.Warning);
-            if (result != MessageBoxResult.OK)
-            {
-                this.SetSwitchChecked(false);
-                return;
-            }
-
             await this.SetSpeedModeAsync("Throughput");
         }
 
@@ -172,7 +157,7 @@ namespace FastGithub.UI
             this.SetSwitchChecked(isThroughput);
             if (isThroughput == true)
             {
-                this.speedModeHint.Text = "占用少量带宽测速";
+                this.speedModeHint.Text = "下载优先：占用少量带宽测速";
                 this.throughputModeText.Foreground = new SolidColorBrush(accent);
                 this.throughputModeText.FontWeight = FontWeights.Bold;
                 this.latencyModeText.Foreground = new SolidColorBrush(gray);
@@ -180,7 +165,7 @@ namespace FastGithub.UI
             }
             else
             {
-                this.speedModeHint.Text = "只按延迟排序";
+                this.speedModeHint.Text = "延迟优先：只按延迟排序";
                 this.latencyModeText.Foreground = new SolidColorBrush(accent);
                 this.latencyModeText.FontWeight = FontWeights.Bold;
                 this.throughputModeText.Foreground = new SolidColorBrush(gray);
