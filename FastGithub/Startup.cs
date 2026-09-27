@@ -1,4 +1,5 @@
 ﻿using FastGithub.Configuration;
+using FastGithub.DomainResolve;
 using FastGithub.FlowAnalyze;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
