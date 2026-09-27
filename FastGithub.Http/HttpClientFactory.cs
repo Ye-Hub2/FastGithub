@@ -12,6 +12,7 @@ namespace FastGithub.Http
     {
         private readonly IDomainResolver domainResolver;
         private readonly FastGithubConfig fastGithubConfig;
+        private readonly IThroughputSampler throughputSampler;
 
         /// <summary>
         /// 首次生命周期
@@ -38,10 +39,14 @@ namespace FastGithub.Http
         /// HttpClient工厂
         /// </summary>
         /// <param name="domainResolver"></param>
-        public HttpClientFactory(IDomainResolver domainResolver, FastGithubConfig fastGithubConfig)
+        public HttpClientFactory(
+            IDomainResolver domainResolver,
+            FastGithubConfig fastGithubConfig,
+            IThroughputSampler throughputSampler)
         {
             this.domainResolver = domainResolver;
             this.fastGithubConfig = fastGithubConfig;
+            this.throughputSampler = throughputSampler;
         }
 
         /// <summary>
@@ -70,7 +75,7 @@ namespace FastGithub.Http
         /// <returns></returns>
         private LifetimeHttpHandler CreateLifetimeHttpHandler(LifeTimeKey lifeTimeKey, TimeSpan lifeTime)
         {
-            return new LifetimeHttpHandler(this.domainResolver, lifeTimeKey, this.fastGithubConfig.ConnectTimeout, lifeTime, this.OnLifetimeHttpHandlerDeactivate);
+            return new LifetimeHttpHandler(this.domainResolver, lifeTimeKey, this.fastGithubConfig.ConnectTimeout, this.throughputSampler, lifeTime, this.OnLifetimeHttpHandlerDeactivate);
         }
 
         /// <summary>

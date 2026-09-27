@@ -13,8 +13,12 @@ namespace FastGithub.HttpServer.TcpMiddlewares
         /// </summary>
         /// <param name="domainResolver"></param>
         /// <param name="fastGithubConfig"></param>
-        public GithubSshReverseProxyHandler(IDomainResolver domainResolver, FastGithubConfig fastGithubConfig)
-            : base(domainResolver, new("github.com", 22), fastGithubConfig)
+        /// <param name="throughputSampler"></param>
+        public GithubSshReverseProxyHandler(
+            IDomainResolver domainResolver,
+            FastGithubConfig fastGithubConfig,
+            IThroughputSampler throughputSampler)
+            : base(domainResolver, new("github.com", 22), fastGithubConfig, throughputSampler)
         {
         }
     }

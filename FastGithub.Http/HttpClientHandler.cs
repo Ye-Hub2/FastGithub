@@ -30,15 +30,25 @@ namespace FastGithub.Http
         private readonly ConnectTimeoutConfig connectTimeout;
 
         /// <summary>
+        /// 下载速率采样器
+        /// </summary>
+        private readonly IThroughputSampler throughputSampler;
+
+        /// <summary>
         /// HttpClientHandler
         /// </summary>
         /// <param name="domainConfig"></param>
         /// <param name="domainResolver"></param> 
-        public HttpClientHandler(DomainConfig domainConfig, IDomainResolver domainResolver, ConnectTimeoutConfig connectTimeout)
+        public HttpClientHandler(
+            DomainConfig domainConfig,
+            IDomainResolver domainResolver,
+            ConnectTimeoutConfig connectTimeout,
+            IThroughputSampler throughputSampler)
         {
             this.domainConfig = domainConfig;
             this.domainResolver = domainResolver;
             this.connectTimeout = connectTimeout;
+            this.throughputSampler = throughputSampler;
             this.InnerHandler = this.CreateSocketsHttpHandler();
         }
 
@@ -157,7 +167,8 @@ namespace FastGithub.Http
             var requestContext = context.InitialRequestMessage.GetRequestContext();
             if (requestContext.IsHttps == false)
             {
-                return stream;
+                // 包装后统计下载速率
+                return new CountingStream(stream, ipEndPoint, this.throughputSampler);
             }
 
             var tlsSniValue = requestContext.TlsSniValue.WithIPAddress(ipEndPoint.Address);
@@ -168,7 +179,8 @@ namespace FastGithub.Http
                 RemoteCertificateValidationCallback = ValidateServerCertificate
             }, cancellationToken);
 
-            return sslStream;
+            // 包装后统计下载速率
+            return new CountingStream(sslStream, ipEndPoint, this.throughputSampler);
 
             // 验证证书有效性
             bool ValidateServerCertificate(object sender, X509Certificate? cert, X509Chain? chain, SslPolicyErrors errors)

@@ -1,5 +1,6 @@
 ﻿using FastGithub.Configuration;
 using FastGithub.DomainResolve;
+using FastGithub.Http;
 using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Http;
@@ -24,6 +25,7 @@ namespace FastGithub.HttpServer.TcpMiddlewares
     {
         private readonly FastGithubConfig fastGithubConfig;
         private readonly IDomainResolver domainResolver;
+        private readonly IThroughputSampler throughputSampler;
 
         /// <summary>
         /// 隧道中间件
@@ -32,10 +34,12 @@ namespace FastGithub.HttpServer.TcpMiddlewares
         /// <param name="domainResolver"></param> 
         public TunnelMiddleware(
             FastGithubConfig fastGithubConfig,
-            IDomainResolver domainResolver)
+            IDomainResolver domainResolver,
+            IThroughputSampler throughputSampler)
         {
             this.fastGithubConfig = fastGithubConfig;
             this.domainResolver = domainResolver;
+            this.throughputSampler = throughputSampler;
         }
 
         /// <summary>
@@ -106,7 +110,11 @@ namespace FastGithub.HttpServer.TcpMiddlewares
                     using var timeoutTokenSource = new CancellationTokenSource(attemptTimeout);
                     using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutTokenSource.Token);
                     await socket.ConnectAsync(endPoint, linkedTokenSource.Token);
-                    return new NetworkStream(socket, ownsSocket: true);
+
+                    var stream = (Stream)new NetworkStream(socket, ownsSocket: true);
+                    return endPoint is IPEndPoint ipEndPoint
+                        ? new CountingStream(stream, ipEndPoint, this.throughputSampler)
+                        : stream;
                 }
                 catch (Exception ex)
                 {

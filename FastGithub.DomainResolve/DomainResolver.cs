@@ -107,10 +107,24 @@ namespace FastGithub.DomainResolve
                 var newSegmentums = newAddresses.Take(MAX_IP_COUNT);
                 if (oldSegmentums.SequenceEqual(newSegmentums) == false)
                 {
-                    var addressArray = string.Join(", ", newSegmentums.Select(item => item.ToString()));
+                    var addressArray = string.Join(", ", newSegmentums.Select(item => this.GetAddressText(dnsEndPoint.Port, item)));
                     this.logger.LogInformation($"{dnsEndPoint.Host}:{dnsEndPoint.Port}->[{addressArray}]");
                 }
             });
+        }
+
+        /// <summary>
+        /// 获取ip的显示文本
+        /// </summary>
+        /// <param name="port"></param>
+        /// <param name="address"></param>
+        /// <returns></returns>
+        private string GetAddressText(int port, IPAddress address)
+        {
+            var bytesPerSecond = this.addressService.GetBytesPerSecond(address, port);
+            return bytesPerSecond == null
+                ? address.ToString()
+                : $"{address}({bytesPerSecond.Value / 1024d:0.#}KB/s)";
         }
     }
 }

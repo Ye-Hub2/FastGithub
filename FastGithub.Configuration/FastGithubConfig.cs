@@ -42,6 +42,21 @@ namespace FastGithub.Configuration
         public ConnectTimeoutConfig ConnectTimeout { get; set; }
 
         /// <summary>
+        /// 下载优先模式下是否主动探测各节点的下载速率
+        /// </summary>
+        public bool ThroughputProbeEnabled { get; set; }
+
+        /// <summary>
+        /// 主动探测时每个节点最多读取的字节数
+        /// </summary>
+        public int ThroughputProbeMaxBytes { get; set; }
+
+        /// <summary>
+        /// 同一个节点两次主动探测的最小间隔毫秒数
+        /// </summary>
+        public long ThroughputProbeIntervalMilliseconds { get; set; }
+
+        /// <summary>
         /// FastGithub配置
         /// </summary>
         /// <param name="options"></param>
@@ -55,6 +70,9 @@ namespace FastGithub.Configuration
             this.DnsNegativeCacheTimeout = opt.GetDnsNegativeCacheTimeout();
             this.TestSpeedParallelCount = opt.GetTestSpeedParallelCount();
             this.ConnectTimeout = opt.GetConnectTimeout();
+            this.ThroughputProbeEnabled = opt.ThroughputProbeEnabled;
+            this.ThroughputProbeMaxBytes = opt.GetThroughputProbeMaxBytes();
+            this.ThroughputProbeIntervalMilliseconds = opt.GetThroughputProbeIntervalSeconds() * 1000L;
             this.domainConfigs = ConvertDomainConfigs(opt.DomainConfigs);
             this.domainConfigCache = new ConcurrentDictionary<string, DomainConfig?>();
 
@@ -72,6 +90,9 @@ namespace FastGithub.Configuration
             this.DnsNegativeCacheTimeout = options.GetDnsNegativeCacheTimeout();
             this.TestSpeedParallelCount = options.GetTestSpeedParallelCount();
             this.ConnectTimeout = options.GetConnectTimeout();
+            this.ThroughputProbeEnabled = options.ThroughputProbeEnabled;
+            this.ThroughputProbeMaxBytes = options.GetThroughputProbeMaxBytes();
+            this.ThroughputProbeIntervalMilliseconds = options.GetThroughputProbeIntervalSeconds() * 1000L;
             this.domainConfigs = ConvertDomainConfigs(options.DomainConfigs);
             this.domainConfigCache = new ConcurrentDictionary<string, DomainConfig?>();
         }

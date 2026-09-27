@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Caching.Memory;
+﻿using FastGithub.Configuration;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
@@ -23,21 +24,40 @@ namespace FastGithub.DomainResolve
         private readonly TimeSpan domainAddressExpiration = TimeSpan.FromMinutes(10d);
         private readonly IMemoryCache domainAddressCache = new MemoryCache(Options.Create(new MemoryCacheOptions()));
 
-        private record AddressElapsed(IPAddress Address, TimeSpan Elapsed);
+        private record AddressElapsed(IPEndPoint EndPoint, TimeSpan Elapsed);
+
+        /// <summary>
+        /// 下载优先模式下的参考体积
+        /// </summary>
+        private const int REFERENCE_BYTES = 512 * 1024;
+
+        /// <summary>
+        /// 没有速率样本时的假定速率(字节/秒)
+        /// </summary>
+        private const double ASSUMED_BYTES_PER_SECOND = 1024d * 1024d;
         private readonly TimeSpan problemElapsedExpiration = TimeSpan.FromMinutes(1d);
         private readonly TimeSpan normalElapsedExpiration = TimeSpan.FromMinutes(5d);
         private readonly TimeSpan connectTimeout = TimeSpan.FromSeconds(5d);
         private readonly IMemoryCache addressElapsedCache = new MemoryCache(Options.Create(new MemoryCacheOptions()));
 
         private readonly DnsClient dnsClient;
+        private readonly IThroughputSampler throughputSampler;
+        private readonly SpeedModeService speedModeService;
 
         /// <summary>
         /// IP服务
         /// </summary>
         /// <param name="dnsClient"></param>
-        public IPAddressService(DnsClient dnsClient)
+        /// <param name="throughputSampler"></param>
+        /// <param name="speedModeService"></param>
+        public IPAddressService(
+            DnsClient dnsClient,
+            IThroughputSampler throughputSampler,
+            SpeedModeService speedModeService)
         {
             this.dnsClient = dnsClient;
+            this.throughputSampler = throughputSampler;
+            this.speedModeService = speedModeService;
         }
 
         /// <summary>
@@ -79,11 +99,44 @@ namespace FastGithub.DomainResolve
 
             return addressElapseds
                 .Where(item => item.Elapsed < TimeSpan.MaxValue)
-                .OrderBy(item => item.Elapsed)
-                .Select(item => item.Address)
+                .OrderBy(item => this.GetScore(item.EndPoint, item.Elapsed))
+                .Select(item => item.EndPoint.Address)
                 .ToArray();
         }
 
+
+        /// <summary>
+        /// 获取节点的下载速率(字节/秒)
+        /// </summary>
+        /// <param name="address"></param>
+        /// <param name="port"></param>
+        /// <returns></returns>
+        public double? GetBytesPerSecond(IPAddress address, int port)
+        {
+            return this.throughputSampler.GetBytesPerSecond(new IPEndPoint(address, port));
+        }
+
+        /// <summary>
+        /// 计算排序评分
+        /// 延迟优先为握手耗时；下载优先为预计下载耗时(握手耗时+参考体积/速率)
+        /// </summary>
+        /// <param name="endPoint"></param>
+        /// <param name="elapsed"></param>
+        /// <returns></returns>
+        private double GetScore(IPEndPoint endPoint, TimeSpan elapsed)
+        {
+            if (this.speedModeService.Mode == SpeedMode.Latency)
+            {
+                return elapsed.TotalMilliseconds;
+            }
+
+            var bytesPerSecond = this.throughputSampler.GetBytesPerSecond(endPoint) ?? ASSUMED_BYTES_PER_SECOND;
+            if (bytesPerSecond <= 0d)
+            {
+                bytesPerSecond = ASSUMED_BYTES_PER_SECOND;
+            }
+            return elapsed.TotalMilliseconds + REFERENCE_BYTES / bytesPerSecond * 1000d;
+        }
 
         /// <summary>
         /// 获取IP节点的时延
@@ -106,14 +159,14 @@ namespace FastGithub.DomainResolve
                 using var socket = new Socket(endPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
                 await socket.ConnectAsync(endPoint, linkedTokenSource.Token);
 
-                addressElapsed = new AddressElapsed(endPoint.Address, stopWatch.Elapsed);
+                addressElapsed = new AddressElapsed(endPoint, stopWatch.Elapsed);
                 return this.addressElapsedCache.Set(endPoint, addressElapsed, this.normalElapsedExpiration);
             }
             catch (Exception ex)
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                addressElapsed = new AddressElapsed(endPoint.Address, TimeSpan.MaxValue);
+                addressElapsed = new AddressElapsed(endPoint, TimeSpan.MaxValue);
                 var expiration = IsLocalNetworkProblem(ex) ? this.problemElapsedExpiration : this.normalElapsedExpiration;
                 return this.addressElapsedCache.Set(endPoint, addressElapsed, expiration);
             }

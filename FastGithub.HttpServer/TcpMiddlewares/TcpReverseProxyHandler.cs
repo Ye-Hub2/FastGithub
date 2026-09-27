@@ -1,5 +1,6 @@
 ﻿using FastGithub.Configuration;
 using FastGithub.DomainResolve;
+using FastGithub.Http;
 using Microsoft.AspNetCore.Connections;
 using System;
 using System.Collections.Generic;
@@ -20,6 +21,7 @@ namespace FastGithub.HttpServer.TcpMiddlewares
     {
         private readonly IDomainResolver domainResolver;
         private readonly FastGithubConfig fastGithubConfig;
+        private readonly IThroughputSampler throughputSampler;
         private readonly DnsEndPoint endPoint;
 
         /// <summary>
@@ -28,11 +30,16 @@ namespace FastGithub.HttpServer.TcpMiddlewares
         /// <param name="domainResolver"></param>
         /// <param name="endPoint"></param>
         /// <param name="fastGithubConfig"></param>
-        public TcpReverseProxyHandler(IDomainResolver domainResolver, DnsEndPoint endPoint, FastGithubConfig fastGithubConfig)
+        public TcpReverseProxyHandler(
+            IDomainResolver domainResolver,
+            DnsEndPoint endPoint,
+            FastGithubConfig fastGithubConfig,
+            IThroughputSampler throughputSampler)
         {
             this.domainResolver = domainResolver;
             this.endPoint = endPoint;
             this.fastGithubConfig = fastGithubConfig;
+            this.throughputSampler = throughputSampler;
         }
 
         /// <summary>
@@ -87,7 +94,8 @@ namespace FastGithub.HttpServer.TcpMiddlewares
                     await socket.ConnectAsync(address, endPoint.Port, linkedTokenSource.Token);
 
                     // ownsSocket必须为true，否则连接结束后socket不会被释放
-                    return new NetworkStream(socket, ownsSocket: true);
+                    var stream = (Stream)new NetworkStream(socket, ownsSocket: true);
+                    return new CountingStream(stream, new IPEndPoint(address, endPoint.Port), this.throughputSampler);
                 }
                 catch (Exception ex)
                 {
