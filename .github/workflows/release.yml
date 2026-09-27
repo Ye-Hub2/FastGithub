@@ -172,14 +172,22 @@ jobs:
       with:  
         path: ./artifacts  
   
-    - name: Prepare release assets  
-      run: |  
-        mkdir -p ./release-assets  
-        find ./artifacts -name "*.zip" -o -name "*.tar.gz" -o -name "*.exe" | while read file; do  
-          cp "$file" ./release-assets/  
-        done  
-        ls -la ./release-assets/  
-  
+    - name: Prepare release assets
+      run: |
+        mkdir -p ./release-assets
+        find ./artifacts -name "*.zip" -o -name "*.tar.gz" -o -name "*.exe" | while read file; do
+          cp "$file" ./release-assets/
+        done
+        ls -la ./release-assets/
+
+        # 校验：Windows 安装包必须是裸 .exe，缺失则直接失败（避免发布出没有安装包的版本）
+        EXE_COUNT=$(ls ./release-assets/*.exe 2>/dev/null | wc -l)
+        echo "安装包 exe 数量: $EXE_COUNT"
+        if [ "$EXE_COUNT" -eq 0 ]; then
+          echo "::error title=缺少 Windows 安装包::release-assets 中没有 .exe，Windows 安装包未成功产出"
+          exit 1
+        fi
+        ls -la ./release-assets/*.exe
     - name: Generate release notes  
       id: release_notes  
       run: |  
