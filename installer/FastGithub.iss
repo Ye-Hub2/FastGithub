@@ -1,4 +1,4 @@
-; FastGithub Windows 安装包脚本（Inno Setup 6）
+﻿; FastGithub Windows 安装包脚本（Inno Setup 6）
 ; 编译示例：ISCC.exe /DMyAppVersion=2.1.6 installer\FastGithub.iss
 ; 打包内容取自 CI 的发布输出目录 ./publish/win-x64
 
