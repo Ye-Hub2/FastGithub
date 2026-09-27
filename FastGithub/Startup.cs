@@ -1,4 +1,4 @@
-using FastGithub.Configuration;
+﻿using FastGithub.Configuration;
 using FastGithub.FlowAnalyze;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -131,6 +131,35 @@ namespace FastGithub
                 var json = JsonSerializer.Serialize(flowStatistics, FlowStatisticsContext.Default.FlowStatistics);
                 return context.Response.WriteAsync(json);
             });
+
+            app.MapGet("/speedMode", context =>
+            {
+                var speedModeService = context.RequestServices.GetRequiredService<SpeedModeService>();
+                return context.Response.WriteAsJsonAsync(new
+                {
+                    mode = speedModeService.Mode.ToString()
+                });
+            });
+
+            app.MapGet("/speedMode/{mode}", context =>
+            {
+                var speedModeService = context.RequestServices.GetRequiredService<SpeedModeService>();
+                var mode = context.Request.RouteValues["mode"] as string;
+                var changed = Enum.TryParse<SpeedMode>(mode, ignoreCase: true, out var speedMode) && speedModeService.SetMode(speedMode);
+
+                return context.Response.WriteAsJsonAsync(new
+                {
+                    mode = speedModeService.Mode.ToString(),
+                    changed = changed
+                });
+            });
+
+            // 服务方式启动时不提示；交互运行时提示下载优先会占用带宽
+            var speedModeService = app.Services.GetRequiredService<SpeedModeService>();
+            if (Environment.UserInteractive == true && speedModeService.Mode == SpeedMode.Throughput)
+            {
+                app.Logger.LogInformation($"选路模式为下载优先：会定期占用少量带宽探测节点的下载速率，可在界面切换为延迟优先");
+            }
         }
     }
 }
