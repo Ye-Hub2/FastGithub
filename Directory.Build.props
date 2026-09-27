@@ -1,4 +1,4 @@
-﻿<Project>
+<Project>
 	<PropertyGroup>
 		<Version>2.1.6</Version>	
 		<Nullable>enable</Nullable>
