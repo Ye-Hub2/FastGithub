@@ -1,4 +1,6 @@
 name: Create Release  
+permissions:
+  contents: write
   
 on:  
   workflow_dispatch:  
@@ -80,7 +82,7 @@ jobs:
         dotnet-version: '7.0.x'  
   
     - name: Restore dependencies  
-      run: dotnet restore FastGithub.sln
+      run: dotnet restore FastGithub/FastGithub.csproj
   
     - name: Build and publish
       shell: bash

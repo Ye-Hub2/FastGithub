@@ -5,6 +5,7 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -19,17 +20,17 @@ jobs:
         dotnet-version: '7.0.x'
 
     - name: Restore dependencies
-      run: dotnet restore FastGithub.sln
+      run: dotnet restore FastGithub/FastGithub.csproj
 
     - name: Build
-      run: dotnet build FastGithub.sln --no-restore --configuration Release
+      run: dotnet build FastGithub/FastGithub.csproj --no-restore --configuration Release
 
-    - name: Test
-      run: dotnet test FastGithub.sln --no-build --configuration Release --verbosity normal
+    # 仓库暂无测试项目；新增测试工程后可恢复 dotnet test
 
   build-multi-platform:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         include:
@@ -51,10 +52,15 @@ jobs:
       with:
         dotnet-version: '7.0.x'
 
+    # Linux/macOS 无法构建 net45 + WPF 的 FastGithub.UI，因此只构建主程序
     - name: Build for ${{ matrix.os }}
+      shell: bash
       run: |
-        dotnet restore FastGithub.sln
-        dotnet build FastGithub.sln --configuration Release
+        if [ "${{ matrix.runtime }}" == "win-x64" ]; then
+          dotnet build FastGithub.sln --configuration Release
+        else
+          dotnet build FastGithub/FastGithub.csproj --configuration Release
+        fi
 
     - name: Publish single-file artifacts with UI
       shell: bash
