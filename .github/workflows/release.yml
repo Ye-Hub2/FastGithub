@@ -103,6 +103,41 @@ jobs:
             -o ./publish/${{ matrix.runtime }}
         fi
 
+    - name: Build installers (Windows only, EXE + MSI)
+      if: matrix.runtime == 'win-x64'
+      shell: pwsh
+      run: |
+        choco install innosetup wixtoolset --no-progress -y
+        $version = "${{ github.event.inputs.version }}".TrimStart('v')
+        $iscc = (Get-ChildItem "${env:ProgramFiles(x86)}\Inno Setup*\ISCC.exe" | Select-Object -First 1).FullName
+        $wixBin = (Get-ChildItem "${env:ProgramFiles(x86)}\WiX Toolset*\bin\candle.exe" | Select-Object -First 1).DirectoryName
+        $publishDir = (Resolve-Path ./publish/win-x64).Path
+        $iconPath = (Resolve-Path ./FastGithub.UI/app.ico).Path
+        New-Item -ItemType Directory -Force -Path ./dist | Out-Null
+
+        # 1) EXE 安装包（Inno Setup）
+        & $iscc "/DMyAppVersion=$version" "installer\FastGithub.iss"
+        if ($LASTEXITCODE -ne 0) { throw "Inno Setup 编译失败" }
+
+        # 2) MSI 安装包（WiX v3：heat 采集 -> candle 编译 -> light 链接）
+        & "$wixBin\heat.exe" dir $publishDir -cg PublishFiles -dr INSTALLFOLDER -gg -g1 -sfrag -srd -sreg -var var.SourceDir -out .\dist\PublishFiles.wxs
+        if ($LASTEXITCODE -ne 0) { throw "heat 采集失败" }
+        & "$wixBin\candle.exe" -arch x64 "-dVersion=$version" "-dSourceDir=$publishDir" "-dIconPath=$iconPath" -out .\dist\ .\installer\FastGithub.wxs .\dist\PublishFiles.wxs
+        if ($LASTEXITCODE -ne 0) { throw "candle 编译失败" }
+        & "$wixBin\light.exe" -out ".\dist\FastGithub-$version-win-x64.msi" .\dist\FastGithub.wixobj .\dist\PublishFiles.wixobj
+        if ($LASTEXITCODE -ne 0) { throw "light 链接失败" }
+
+        Get-ChildItem ./dist
+
+    - name: Upload installers
+      if: matrix.runtime == 'win-x64'
+      uses: actions/upload-artifact@v4
+      with:
+        name: fastgithub-win-x64-installer
+        path: |
+          ./dist/*.exe
+          ./dist/*.msi
+
     - name: Create archive  
       shell: bash  
       run: |  
@@ -139,7 +174,7 @@ jobs:
     - name: Prepare release assets  
       run: |  
         mkdir -p ./release-assets  
-        find ./artifacts -name "*.zip" -o -name "*.tar.gz" | while read file; do  
+        find ./artifacts -name "*.zip" -o -name "*.tar.gz" -o -name "*.exe" -o -name "*.msi" | while read file; do  
           cp "$file" ./release-assets/  
         done  
         ls -la ./release-assets/  
@@ -153,7 +188,7 @@ jobs:
         🚀 **新版本发布**  
           
         ### 📦 下载说明  
-        - **Windows 用户**: 下载 `fastgithub-win-x64.zip`  
+        - **Windows 用户**: 安装包二选一 —— `FastGithub-${{ github.event.inputs.version }}-win-x64-setup.exe`（安装向导，推荐）或 `FastGithub-${{ github.event.inputs.version }}-win-x64.msi`（MSI，适合域部署）；也可下载 `fastgithub-win-x64.zip` 免安装  
         - **Linux 用户**: 下载 `fastgithub-linux-x64.tar.gz`  
         - **macOS 用户**: 下载 `fastgithub-osx-x64.tar.gz`  
           

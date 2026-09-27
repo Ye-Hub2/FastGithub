@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- FastGithub MSI 安装包脚本（WiX Toolset v3）
+     编译：heat 采集发布目录 -> candle -> light，见 GitHub 工作流 -->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*"
+           Name="FastGithub"
+           Language="2052"
+           Version="$(var.Version)"
+           Manufacturer="FastGithub"
+           UpgradeCode="8C4E7A25-6B31-4C9D-A7E2-3F1B5D8C9A46">
+
+    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" Platform="x64" />
+    <MajorUpgrade DowngradeErrorMessage="已安装更高版本的 FastGithub，请先卸载。" />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="AppIcon" SourceFile="$(var.IconPath)" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLFOLDER" Name="FastGithub" />
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ApplicationProgramsFolder" Name="FastGithub" />
+      </Directory>
+      <Directory Id="DesktopFolder" />
+    </Directory>
+
+    <DirectoryRef Id="ApplicationProgramsFolder">
+      <Component Id="ApplicationShortcut" Guid="D6C2B8A4-3E17-4F5C-9A82-7B1E4D3F6C25">
+        <Shortcut Id="StartMenuShortcut"
+                  Name="FastGithub"
+                  Description="github加速神器"
+                  Target="[INSTALLFOLDER]FastGithub.UI.exe"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="AppIcon" />
+        <RemoveFolder Id="RemoveApplicationProgramsFolder" Directory="ApplicationProgramsFolder" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\FastGithub" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+
+      <Component Id="DesktopShortcut" Guid="A1F5E93B-2D48-4C60-B7E3-9F2A6C8D5B14">
+        <Shortcut Id="DesktopShortcutLink"
+                  Name="FastGithub"
+                  Description="github加速神器"
+                  Target="[INSTALLFOLDER]FastGithub.UI.exe"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Directory="DesktopFolder"
+                  Icon="AppIcon" />
+        <RegistryValue Root="HKCU" Key="Software\FastGithub" Name="desktopicon" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <Feature Id="MainFeature" Title="FastGithub" Level="1">
+      <ComponentGroupRef Id="PublishFiles" />
+      <ComponentRef Id="ApplicationShortcut" />
+      <ComponentRef Id="DesktopShortcut" />
+    </Feature>
+  </Product>
+</Wix>
