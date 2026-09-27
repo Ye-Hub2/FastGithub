@@ -43,6 +43,7 @@ namespace FastGithub.DomainResolve
         private readonly DnsClient dnsClient;
         private readonly IThroughputSampler throughputSampler;
         private readonly SpeedModeService speedModeService;
+        private readonly ThroughputProbe throughputProbe;
 
         /// <summary>
         /// IP服务
@@ -50,14 +51,17 @@ namespace FastGithub.DomainResolve
         /// <param name="dnsClient"></param>
         /// <param name="throughputSampler"></param>
         /// <param name="speedModeService"></param>
+        /// <param name="throughputProbe"></param>
         public IPAddressService(
             DnsClient dnsClient,
             IThroughputSampler throughputSampler,
-            SpeedModeService speedModeService)
+            SpeedModeService speedModeService,
+            ThroughputProbe throughputProbe)
         {
             this.dnsClient = dnsClient;
             this.throughputSampler = throughputSampler;
             this.speedModeService = speedModeService;
+            this.throughputProbe = throughputProbe;
         }
 
         /// <summary>
@@ -97,8 +101,18 @@ namespace FastGithub.DomainResolve
             var addressElapsedTasks = ipEndPoints.Select(item => this.GetAddressElapsedAsync(item, cancellationToken));
             var addressElapseds = await Task.WhenAll(addressElapsedTasks);
 
-            return addressElapseds
+            var available = addressElapseds
                 .Where(item => item.Elapsed < TimeSpan.MaxValue)
+                .ToArray();
+
+            // 下载优先模式下为没有速率样本的节点发起后台探测，不阻塞本次排序
+            if (this.speedModeService.Mode == SpeedMode.Throughput)
+            {
+                var candidates = available.OrderBy(item => item.Elapsed).Select(item => item.EndPoint);
+                this.throughputProbe.TryProbe(dnsEndPoint, candidates);
+            }
+
+            return available
                 .OrderBy(item => this.GetScore(item.EndPoint, item.Elapsed))
                 .Select(item => item.EndPoint.Address)
                 .ToArray();

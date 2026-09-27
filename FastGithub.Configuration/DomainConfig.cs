@@ -41,6 +41,12 @@ namespace FastGithub.Configuration
         public TimeSpan? Timeout { get; init; }
 
         /// <summary>
+        /// 下载速率主动探测用的地址(可选，必须是https)
+        /// 仅下载优先模式下使用，未配置则该域名不做主动探测
+        /// </summary>
+        public Uri? SpeedTestUri { get; init; }
+
+        /// <summary>
         /// 目的地
         /// 格式为相对或绝对uri
         /// </summary>
