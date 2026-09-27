@@ -36,13 +36,10 @@ jobs:
         include:
           - os: ubuntu-latest
             runtime: linux-x64
-            artifact-name: fastgithub-linux-x64
           - os: windows-latest
             runtime: win-x64
-            artifact-name: fastgithub-win-x64
           - os: macos-latest
             runtime: osx-x64
-            artifact-name: fastgithub-osx-x64
 
     steps:
     - uses: actions/checkout@v4
@@ -53,6 +50,13 @@ jobs:
         dotnet-version: '7.0.x'
 
     # Linux/macOS 无法构建 net45 + WPF 的 FastGithub.UI，因此只构建主程序
+    - name: Resolve version
+      id: version
+      shell: pwsh
+      run: |
+        $version = (Select-String -Path Directory.Build.props -Pattern '<Version>([^<]+)</Version>').Matches[0].Groups[1].Value
+        "value=$version" >> $env:GITHUB_OUTPUT
+
     - name: Build for ${{ matrix.os }}
       shell: bash
       run: |
@@ -113,12 +117,12 @@ jobs:
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ matrix.artifact-name }}
+        name: fastgithub-${{ steps.version.outputs.value }}-${{ matrix.runtime }}
         path: ./publish/${{ matrix.runtime }}
 
     - name: Upload installers
       if: matrix.runtime == 'win-x64'
       uses: actions/upload-artifact@v4
       with:
-        name: fastgithub-win-x64-installer
+        name: fastgithub-${{ steps.version.outputs.value }}-win-x64-installer
         path: ./dist/*.exe

@@ -59,24 +59,28 @@ jobs:
     strategy:  
       matrix:  
         os: [ubuntu-latest, windows-latest, macos-latest]  
-        include:  
-          - os: ubuntu-latest  
-            runtime: linux-x64  
-            artifact-name: fastgithub-linux-x64  
-          - os: windows-latest  
-            runtime: win-x64  
-            artifact-name: fastgithub-win-x64  
-          - os: macos-latest  
-            runtime: osx-x64  
-            artifact-name: fastgithub-osx-x64  
-  
+        include:
+          - os: ubuntu-latest
+            runtime: linux-x64
+          - os: windows-latest
+            runtime: win-x64
+          - os: macos-latest
+            runtime: osx-x64
+
     steps:  
     - name: Checkout code  
       uses: actions/checkout@v4  
-      with:  
-        ref: ${{ github.event.inputs.version }}  
-  
-    - name: Setup .NET  
+      with:
+        ref: ${{ github.event.inputs.version }}
+
+    - name: Resolve version
+      id: version
+      shell: bash
+      run: echo "value=${VERSION#v}" >> "$GITHUB_OUTPUT"
+      env:
+        VERSION: ${{ github.event.inputs.version }}
+
+    - name: Setup .NET
       uses: actions/setup-dotnet@v4  
       with:  
         dotnet-version: '7.0.x'  
@@ -136,38 +140,43 @@ jobs:
       if: matrix.runtime == 'win-x64'
       uses: actions/upload-artifact@v4
       with:
-        name: fastgithub-win-x64-installer
+        name: fastgithub-${{ steps.version.outputs.value }}-win-x64-installer
         path: ./dist/*.exe
 
-    - name: Create archive  
-      shell: bash  
-      run: |  
-        cd ./publish/${{ matrix.runtime }}  
-        if [ "${{ matrix.os }}" == "windows-latest" ]; then  
-          7z a -tzip ../../${{ matrix.artifact-name }}.zip *  
-        else  
-          tar -czf ../../${{ matrix.artifact-name }}.tar.gz *  
-        fi  
-  
-    - name: Upload artifacts  
-      uses: actions/upload-artifact@v4  
-      with:  
-        name: ${{ matrix.artifact-name }}  
-        path: |  
-          ${{ matrix.artifact-name }}.zip  
-          ${{ matrix.artifact-name }}.tar.gz  
-  
-  create-github-release:  
-    needs: build-artifacts  
-    runs-on: ubuntu-latest  
-      
-    steps:  
+    - name: Create archive
+      shell: bash
+      run: |
+        VERSION="${{ github.event.inputs.version }}"
+        VERSION="${VERSION#v}"
+        cd ./publish/${{ matrix.runtime }}
+        if [ "${{ matrix.os }}" == "windows-latest" ]; then
+          7z a -tzip "../../FastGithub-${VERSION}-${{ matrix.runtime }}.zip" *
+        else
+          tar -czf "../../FastGithub-${VERSION}-${{ matrix.runtime }}.tar.gz" *
+        fi
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: fastgithub-${{ steps.version.outputs.value }}-${{ matrix.runtime }}
+        path: ./FastGithub-*
+  create-github-release:
+    needs: build-artifacts
+    runs-on: ubuntu-latest
+
+    steps:
     - name: Checkout code  
       uses: actions/checkout@v4  
       with:  
         ref: ${{ github.event.inputs.version }}  
   
-    - name: Download all artifacts  
+    - name: Resolve version
+      id: version
+      shell: bash
+      run: echo "value=${VERSION#v}" >> "$GITHUB_OUTPUT"
+      env:
+        VERSION: ${{ github.event.inputs.version }}
+
+    - name: Download all artifacts
       uses: actions/download-artifact@v4  
       with:  
         path: ./artifacts  
@@ -197,9 +206,9 @@ jobs:
         🚀 **新版本发布**  
           
         ### 📦 下载说明  
-        - **Windows 用户**: 下载 `FastGithub-${{ github.event.inputs.version }}-win-x64-setup.exe`（安装包，推荐）或 `fastgithub-win-x64.zip`（免安装）  
-        - **Linux 用户**: 下载 `fastgithub-linux-x64.tar.gz`  
-        - **macOS 用户**: 下载 `fastgithub-osx-x64.tar.gz`  
+        - **Windows 用户**: 下载 `FastGithub-${{ steps.version.outputs.value }}-win-x64-setup.exe`（安装包，推荐）或 `FastGithub-${{ steps.version.outputs.value }}-win-x64.zip`（免安装）
+        - **Linux 用户**: 下载 `FastGithub-${{ steps.version.outputs.value }}-linux-x64.tar.gz`
+        - **macOS 用户**: 下载 `FastGithub-${{ steps.version.outputs.value }}-osx-x64.tar.gz`
           
         ### 🔧 安装说明  
         请参考 [README.md](https://github.com/${{ github.repository }}/blob/main/README.md) 中的部署方式。  
